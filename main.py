@@ -15,7 +15,7 @@ SUPABASE_KEY = os.getenv("SUPABASE_KEY")
 supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
 
 # Configuración de la aplicación
-TIMEOUT = 300  # 5 minutos en segundos
+TIMEOUT = 60  # En segundos
 PORT = 8000
 HOST = "0.0.0.0"
 
