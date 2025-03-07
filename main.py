@@ -75,6 +75,13 @@ async def lifespan(app: FastAPI):
 # Se crea la aplicación utilizando el manejador de lifespan
 app = FastAPI(lifespan=lifespan)
 
+@app.get("/")
+async def root():
+    """
+    Endpoint raíz para indicar que la API está funcionando.
+    """
+    return {"message": "La API está funcionando"}
+
 @app.post("/activity/{user_id}")
 async def report_activity(user_id: str):
     """
