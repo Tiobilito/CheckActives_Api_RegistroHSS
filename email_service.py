@@ -19,12 +19,12 @@ def send_email(to_email: str, subject: str, body: str):
           <meta charset="UTF-8">
           <meta name="viewport" content="width=device-width, initial-scale=1.0">
           <title>Recuperación de Contraseña</title>
-          <link rel="icon" href="cid:.\assets\adaptive-icon.png.png" type="image/png" />
+          <link rel="icon" href="cid:adaptive-icon.png" type="image/png" />
         </head>
         <body style="background-color: #eff5f5; margin: 0; padding: 0; font-family: sans-serif;">
           <div style="padding: 40px; text-align: center;">
             <div style="background-color: #ffffff; padding: 30px; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.1);">
-              <img src="cid:.\assets\adaptive-icon.png.png" alt="Registro HSS" style="max-width: 100px; height: auto;"/>
+              <img src="cid:adaptive-icon.png" alt="Registro HSS" style="max-width: 100px; height: auto;"/>
               <h1>Registro HSS</h1>
               <h2>Recuperación de contraseña</h2>
               <p>Has solicitado un token para restablecer tu contraseña. Este token expira en 1 hora.</p>
@@ -40,13 +40,13 @@ def send_email(to_email: str, subject: str, body: str):
         message.set_content(body)  # Texto plano
         message.add_alternative(html_body, subtype='html')
 
-        # Cargar imagen para incluir en el correo
-        image_path = os.path.join(os.getcwd(), '.\assets\adaptive-icon.png.png')
+        # Cargar la imagen desde la carpeta "assets"
+        image_path = os.path.join(os.getcwd(), 'assets', 'adaptive-icon.png')
         with open(image_path, 'rb') as img:
             image_data = img.read()
-            message.get_payload()[1].add_related(image_data, 'image', 'png', cid='.\assets\adaptive-icon.png.png')
+            message.get_payload()[1].add_related(image_data, 'image', 'png', cid='adaptive-icon.png')
 
-        # Conexión segura al servidor SMTP usando STARTTLS
+        # Conectar al servidor SMTP de forma segura usando STARTTLS
         with smtplib.SMTP(EMAIL_HOST, EMAIL_PORT) as server:
             server.starttls()
             server.login(EMAIL_USERNAME, EMAIL_PASSWORD)
