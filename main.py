@@ -1,46 +1,69 @@
+# main.py
+import socketio
 from fastapi import FastAPI
-import threading
-from config import PORT, HOST, TIMEOUT, supabase
-from timer_manager import active_timers, timer_lock, timer_callback
+from fastapi.middleware.cors import CORSMiddleware
+from config import PORT, HOST, supabase
 import uvicorn
-from contextlib import asynccontextmanager
 
-# Importar routers de endpoints
+
+sio = socketio.AsyncServer(async_mode='asgi', cors_allowed_origins='*')
+app = FastAPI()
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"], 
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+# Incluir tus routers normales (API REST)
 from routes.activity import router as activity_router
 from routes.auth import router as auth_router
-
-@asynccontextmanager
-async def lifespan(app: FastAPI):
-    # Startup: inicializa timers para usuarios activos previamente
-    print("Iniciando aplicación...")
-    try:
-        response = supabase.table("Usuarios").select("Codigo").eq("Status", "Activo").execute()
-        for user in response.data:
-            user_id = str(user["Codigo"])
-            with timer_lock:
-                if user_id not in active_timers:
-                    timer = threading.Timer(TIMEOUT, timer_callback, args=(user_id,))
-                    active_timers[user_id] = timer
-                    timer.start()
-                    print(f"Timer iniciado para {user_id} al arranque")
-    except Exception as e:
-        print(f"Error al cargar usuarios activos: {str(e)}")
-    
-    yield  # La aplicación está en ejecución hasta el shutdown
-
-    # Shutdown: cancelar todos los timers activos
-    print("Apagando aplicación...")
-    with timer_lock:
-        for user_id, timer in active_timers.items():
-            timer.cancel()
-            print(f"Timer cancelado para {user_id}")
-        active_timers.clear()
-
-app = FastAPI(lifespan=lifespan)
-
-# Incluir los routers de los endpoints
 app.include_router(activity_router)
 app.include_router(auth_router)
 
+# Asociar FastAPI con socket.io
+socket_app = socketio.ASGIApp(sio, other_asgi_app=app)
+
+connected_users = {}  # Diccionario temporal para saber qué usuarios están activos
+
+@sio.event
+async def connect(sid, environ):
+    print(f"🔌 Cliente conectado: {sid}")
+
+@sio.event
+async def disconnect(sid):
+    print(f" Cliente desconectado: {sid}")
+    user_id = None
+    for uid, session in connected_users.items():
+        if session["sid"] == sid:
+            user_id = uid
+            break
+
+    if user_id:
+        try:
+            supabase.table("Usuarios").update({"Status": "Inactivo"}).eq("Codigo", user_id).execute()
+            print(f"Usuario {user_id} marcado como Inactivo")
+        except Exception as e:
+            print(f" Error al actualizar Supabase para {user_id}: {e}")
+        del connected_users[user_id]
+
+@sio.event
+async def user_status(sid, data):
+    user_id = str(data.get("userId"))
+    status = data.get("status", "Activo")
+
+    if status.lower() == "activo":
+        connected_users[user_id] = {"sid": sid}
+        try:
+            supabase.table("Usuarios").update({"Status": "Activo"}).eq("Codigo", user_id).execute()
+            print(f" Usuario {user_id} marcado como Activo")
+        except Exception as e:
+            print(f" Error al actualizar Supabase para {user_id}: {e}")
+
+    await sio.emit("server_message", {"msg": f"Estado de {user_id}: {status}"}, to=sid)
+
+# Ejecutar servidor
 if __name__ == "__main__":
-    uvicorn.run("main:app", host=HOST, port=PORT, reload=True, log_level="info")
+    uvicorn.run(socket_app, host=HOST, port=PORT, reload=True)
