@@ -41,24 +41,29 @@ async def disconnect(sid):
     await sio.emit("user_disconnected", {"sid": sid})
 
 @sio.event
-async def add_active(sid, data):
+async def user_status(sid, data):
     """
-    Maneja la adición de un usuario activo.
+    Maneja el estado de un usuario.
     """
-    codigo = str(data.get("Codigo"))
-    id_departamento = str(data.get("idDepartamento"))
+    user_id = str(data.get("userId"))
+    department_id = str(data.get("departmentId"))
+    status = data.get("status", "Activo")
 
-    add_connected_user(codigo, sid, id_departamento)
-    await sio.emit("user_status_updated", {"sid": sid, "Codigo": codigo, "idDepartamento": id_departamento})
+    if status.lower() == "activo":
+        add_connected_user(user_id, sid, department_id)
+    else:
+        remove_connected_user(sid)
+
+    await sio.emit("user_status_updated", {"sid": sid, "data": data})
 
 @sio.event
-async def emit_active_users_by_department(sid, data):
+async def get_active_users_by_department(sid, data):
     """
     Envía en tiempo real los usuarios activos de un departamento específico.
     """
-    id_departamento = str(data.get("idDepartamento"))
-    active_users = get_active_users_by_department(id_departamento)
-    await sio.emit("active_users", {"idDepartamento": id_departamento, "active_users": active_users}, to=sid)
+    department_id = str(data.get("departmentId"))
+    active_users = get_active_users_by_department(department_id)
+    await sio.emit("active_users", {"department_id": department_id, "active_users": active_users}, to=sid)
 
 # Función para limpiar las URLs en Supabase al cerrar la API
 def cleanup_urls():
