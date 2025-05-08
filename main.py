@@ -1,75 +1,20 @@
-from pyngrok import ngrok
-import time
-import socketio
 from fastapi import FastAPI
-from fastapi.middleware.cors import CORSMiddleware
+import threading
 from config import PORT, HOST, supabase
 import uvicorn
+from pyngrok import ngrok
+import time
 
-
-sio = socketio.AsyncServer(async_mode='asgi', cors_allowed_origins='*')
-app = FastAPI()
-
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"], 
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
-
-# Incluir tus routers normales (API REST)
+# Importar routers de endpoints
 from routes.activity import router as activity_router
 from routes.auth import router as auth_router
+
+app = FastAPI()
+
+# Incluir los routers de los endpoints
 app.include_router(activity_router)
 app.include_router(auth_router)
 
-# Asociar FastAPI con socket.io
-socket_app = socketio.ASGIApp(sio, other_asgi_app=app)
-
-connected_users = {}  # Diccionario temporal para saber qué usuarios están activos
-
-@sio.event
-async def connect(sid, environ):
-    print(f"🔌 Cliente conectado: {sid}")
-
-@sio.event
-async def disconnect(sid):
-    print(f" Cliente desconectado: {sid}")
-    user_id = None
-    for uid, session in connected_users.items():
-        if session["sid"] == sid:
-            user_id = uid
-            break
-
-    if user_id:
-        try:
-            supabase.table("Usuarios").update({"Status": "Inactivo"}).eq("Codigo", user_id).execute()
-            print(f"Usuario {user_id} marcado como Inactivo")
-        except Exception as e:
-            print(f" Error al actualizar Supabase para {user_id}: {e}")
-        del connected_users[user_id]
-
-@sio.event
-async def user_status(sid, data):
-    user_id = str(data.get("userId"))
-    status = data.get("status", "Activo")
-
-    if status.lower() == "activo":
-        connected_users[user_id] = {"sid": sid}
-        try:
-            supabase.table("Usuarios").update({"Status": "Activo"}).eq("Codigo", user_id).execute()
-            print(f" Usuario {user_id} marcado como Activo")
-        except Exception as e:
-            print(f" Error al actualizar Supabase para {user_id}: {e}")
-
-    await sio.emit("server_message", {"msg": f"Estado de {user_id}: {status}"}, to=sid)
-
-# Validar configuración
-if not PORT or not HOST:
-    raise ValueError("Las variables de configuración PORT y HOST deben estar definidas en config.py")
-
-# Ejecutar servidor
 if __name__ == "__main__":
     try:
         # Abre túnel para puerto 8000 (API FastAPI)
@@ -92,6 +37,6 @@ if __name__ == "__main__":
             print(f"❌ Error actualizando URLs en Supabase: {e}")
 
         # Iniciar el servidor
-        uvicorn.run("main:socket_app", host=HOST, port=PORT, reload=True)
+        uvicorn.run("main:app", host=HOST, port=PORT, reload=True, log_level="info")
     except Exception as e:
         print(f"❌ Error al iniciar el servidor: {e}")
