@@ -77,7 +77,7 @@ if __name__ == "__main__":
         print(f"🔗 API disponible en: {api_tunnel.public_url}")
 
         # Abre túnel para puerto 11434 (Ollama)
-        ollama_tunnel = ngrok.connect(11434, "http")
+        ollama_tunnel = ngrok.connect("localhost:11434", "http", host_header="rewrite")
         print(f"🤖 Ollama disponible en: {ollama_tunnel.public_url}")
 
         # Esperar unos segundos para asegurar conexión
