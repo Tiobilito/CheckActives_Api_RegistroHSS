@@ -1,13 +1,10 @@
 import threading
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter
 from config import TIMEOUT
 from timer_manager import active_timers, timer_lock, timer_callback
 from db import update_user_status
 
 router = APIRouter()
-
-# Diccionario para almacenar usuarios activos con su departamento
-connected_users = {}
 
 @router.get("/")
 async def root():
@@ -43,25 +40,3 @@ async def get_status():
             "active_users": list(active_timers.keys()),
             "total_active": len(active_timers)
         }
-
-# Lógica de manejo de usuarios activos
-def add_connected_user(user_id: str, sid: str, department_id: str):
-    connected_users[user_id] = {"sid": sid, "department_id": department_id}
-    print(f"Usuario {user_id} agregado al departamento {department_id}")
-
-def remove_connected_user(sid: str):
-    user_id = None
-    for uid, session in connected_users.items():
-        if session["sid"] == sid:
-            user_id = uid
-            break
-    if user_id:
-        del connected_users[user_id]
-        print(f"Usuario {user_id} eliminado de la lista de activos")
-
-def get_active_users_by_department(department_id: str):
-    return [
-        {"user_id": user_id, "department_id": info["department_id"]}
-        for user_id, info in connected_users.items()
-        if info["department_id"] == department_id
-    ]

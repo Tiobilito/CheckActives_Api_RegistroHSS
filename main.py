@@ -28,7 +28,7 @@ app.include_router(auth_router)
 # Asociar FastAPI con socket.io
 socket_app = socketio.ASGIApp(sio, other_asgi_app=app)
 
-from routes.activity import add_connected_user, remove_connected_user, get_active_users_by_department
+connected_users = {}  # Diccionario temporal para saber qué usuarios están activos
 
 @sio.event
 async def connect(sid, environ):
@@ -37,33 +37,34 @@ async def connect(sid, environ):
 @sio.event
 async def disconnect(sid):
     print(f" Cliente desconectado: {sid}")
-    remove_connected_user(sid)  # Elimina al usuario de la memoria de activos
-    await sio.emit("user_disconnected", {"sid": sid})
+    user_id = None
+    for uid, session in connected_users.items():
+        if session["sid"] == sid:
+            user_id = uid
+            break
+
+    if user_id:
+        try:
+            supabase.table("Usuarios").update({"Status": "Inactivo"}).eq("Codigo", user_id).execute()
+            print(f"Usuario {user_id} marcado como Inactivo")
+        except Exception as e:
+            print(f" Error al actualizar Supabase para {user_id}: {e}")
+        del connected_users[user_id]
 
 @sio.event
 async def user_status(sid, data):
-    """
-    Maneja el estado de un usuario.
-    """
     user_id = str(data.get("userId"))
-    department_id = str(data.get("departmentId"))
     status = data.get("status", "Activo")
 
     if status.lower() == "activo":
-        add_connected_user(user_id, sid, department_id)
-    else:
-        remove_connected_user(sid)
+        connected_users[user_id] = {"sid": sid}
+        try:
+            supabase.table("Usuarios").update({"Status": "Activo"}).eq("Codigo", user_id).execute()
+            print(f" Usuario {user_id} marcado como Activo")
+        except Exception as e:
+            print(f" Error al actualizar Supabase para {user_id}: {e}")
 
-    await sio.emit("user_status_updated", {"sid": sid, "data": data})
-
-@sio.event
-async def get_active_users_by_department(sid, data):
-    """
-    Envía en tiempo real los usuarios activos de un departamento específico.
-    """
-    department_id = str(data.get("departmentId"))
-    active_users = get_active_users_by_department(department_id)
-    await sio.emit("active_users", {"department_id": department_id, "active_users": active_users}, to=sid)
+    await sio.emit("server_message", {"msg": f"Estado de {user_id}: {status}"}, to=sid)
 
 # Función para limpiar las URLs en Supabase al cerrar la API
 def cleanup_urls():
@@ -83,7 +84,6 @@ if not PORT or not HOST:
 
 # Ejecutar servidor
 if __name__ == "__main__":
-
     try:
         # Abre túnel para puerto 8000 (API FastAPI)
         api_tunnel = ngrok.connect(8000, "http")
