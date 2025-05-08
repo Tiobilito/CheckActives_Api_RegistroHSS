@@ -5,7 +5,6 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from config import PORT, HOST, supabase
 import uvicorn
-import atexit  # Importar para manejar eventos al cerrar la aplicación
 
 
 sio = socketio.AsyncServer(async_mode='asgi', cors_allowed_origins='*')
@@ -65,18 +64,6 @@ async def user_status(sid, data):
             print(f" Error al actualizar Supabase para {user_id}: {e}")
 
     await sio.emit("server_message", {"msg": f"Estado de {user_id}: {status}"}, to=sid)
-
-# Función para limpiar las URLs en Supabase al cerrar la API
-def cleanup_urls():
-    try:
-        supabase.table("URLs").update({"url": None}).eq("id", 1).execute()
-        supabase.table("URLs").update({"url": None}).eq("id", 2).execute()
-        print("🧹 URLs limpiadas en Supabase")
-    except Exception as e:
-        print(f"❌ Error limpiando URLs en Supabase: {e}")
-
-# Registrar la función de limpieza para ejecutarse al cerrar la aplicación
-atexit.register(cleanup_urls)
 
 # Validar configuración
 if not PORT or not HOST:
