@@ -5,12 +5,6 @@ from config import AUTH_TOKEN_EXPIRATION
 active_auth_tokens = {}
 auth_token_lock = threading.Lock()
 
-# Diccionario para almacenar los temporizadores activos
-active_timers = {}
-
-# Bloqueo para manejar los temporizadores activos
-timer_lock = threading.Lock()
-
 def auth_timer_callback(token: str):
     with auth_token_lock:
         print(f"Auth token expirado: {token}")
