@@ -1,4 +1,5 @@
-# main.py
+from pyngrok import ngrok
+import time
 import socketio
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -64,6 +65,33 @@ async def user_status(sid, data):
 
     await sio.emit("server_message", {"msg": f"Estado de {user_id}: {status}"}, to=sid)
 
+# Validar configuración
+if not PORT or not HOST:
+    raise ValueError("Las variables de configuración PORT y HOST deben estar definidas en config.py")
+
 # Ejecutar servidor
 if __name__ == "__main__":
-    uvicorn.run(socket_app, host=HOST, port=PORT, reload=True)
+    try:
+        # Abre túnel para puerto 8000 (API FastAPI)
+        api_tunnel = ngrok.connect(8000, "http")
+        print(f"🔗 API disponible en: {api_tunnel.public_url}")
+
+        # Abre túnel para puerto 11434 (Ollama)
+        ollama_tunnel = ngrok.connect(11434, "http")
+        print(f"🤖 Ollama disponible en: {ollama_tunnel.public_url}")
+
+        # Esperar unos segundos para asegurar conexión
+        time.sleep(1)
+
+        # Actualizar tabla URLs en Supabase
+        try:
+            supabase.table("URLs").update({"url": api_tunnel.public_url}).eq("id", 1).execute()
+            supabase.table("URLs").update({"url": ollama_tunnel.public_url}).eq("id", 2).execute()
+            print("✅ URLs actualizadas en Supabase")
+        except Exception as e:
+            print(f"❌ Error actualizando URLs en Supabase: {e}")
+
+        # Iniciar el servidor
+        uvicorn.run("main:socket_app", host=HOST, port=PORT, reload=True)
+    except Exception as e:
+        print(f"❌ Error al iniciar el servidor: {e}")
