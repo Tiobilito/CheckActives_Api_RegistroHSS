@@ -13,6 +13,7 @@ from routes.auth import router as auth_router
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    global api_tunnel, ollama_tunnel
     # Startup: inicializa timers para usuarios activos previamente
     print("Iniciando aplicación...")
     try:
@@ -31,13 +32,23 @@ async def lifespan(app: FastAPI):
     
     yield  # La aplicación está en ejecución hasta el shutdown
 
-    # Shutdown: cancelar todos los timers activos
+    # Shutdown: cancelar todos los timers activos y cerrar túneles de ngrok
     print("Apagando aplicación...")
     with timer_lock:
         for user_id, timer in active_timers.items():
             timer.cancel()
             print(f"Timer cancelado para {user_id}")
         active_timers.clear()
+
+    try:
+        if 'api_tunnel' in globals():
+            ngrok.disconnect(api_tunnel.public_url)
+        if 'ollama_tunnel' in globals():
+            ngrok.disconnect(ollama_tunnel.public_url)
+        ngrok.kill()
+        print("Túneles de ngrok cerrados correctamente.")
+    except Exception as e:
+        print(f"Error cerrando túneles de ngrok: {str(e)}")
 
 app = FastAPI(lifespan=lifespan)
 
@@ -47,6 +58,7 @@ app.include_router(auth_router)
 
 if __name__ == "__main__":
     try:
+        global api_tunnel, ollama_tunnel
         # Abre túnel para puerto 8000 (API FastAPI)
         api_tunnel = ngrok.connect(8000, "http")
         print(f"🔗 API disponible en: {api_tunnel.public_url}")
